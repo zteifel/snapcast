@@ -38,9 +38,6 @@ include_directories(${CLIENT_INCLUDE})
 add_executable(snapclient ${CLIENT_SOURCES})
 target_link_libraries(snapclient ${CLIENT_LIBRARIES})
 
-<<<<<<< HEAD
-install(TARGETS snapclient COMPONENT client DESTINATION "${CMAKE_INSTALL_BINDIR}")
-=======
 if(UNIX)
   install(TARGETS snapclient COMPONENT client DESTINATION sbin)
   install(FILES snapclient.1 COMPONENT client DESTINATION usr/share/man/man1/snapclient.1)
@@ -87,4 +84,3 @@ elseif(WIN32)
   add_custom_target("BUNDLE" DEPENDS ${BUNDLE_OUTPUT})
   add_dependencies("BUNDLE" "PACKAGE")
 endif()
->>>>>>> 281f1bd161fd2a4cd4aa11daf08ca5c3fe88d83d
