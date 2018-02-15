@@ -34,29 +34,81 @@
 #include <memory>
 #include <cerrno>
 #include <iterator>
+#ifndef WINDOWS
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <iomanip>
-#ifndef FREEBSD
-#include <sys/sysinfo.h>
 #endif
+#include <iomanip>
+#if !defined(FREEBSD) && !defined(WINDOWS)
+#include <sys/sysinfo.h>
 #include <sys/utsname.h>
+#endif
 #ifdef MACOS
 #include <ifaddrs.h>
 #include <net/if_dl.h>
 #include <IOKit/IOCFPlugIn.h>
 #include <IOKit/IOTypes.h>
 #endif
-
+#ifdef WINDOWS
+#include <chrono>
+#include <windows.h>
+#include <direct.h>
+#include <winsock2.h>
+#include <iphlpapi.h>
+#include <versionhelpers.h>
+#endif
 
 namespace strutils = utils::string;
 
+static std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems)
+{
+	std::stringstream ss(s);
+	std::string item;
+	while (std::getline(ss, item, delim))
+	{
+		elems.push_back(item);
+	}
+	return elems;
+}
 
 
+static std::vector<std::string> split(const std::string &s, char delim)
+{
+	std::vector<std::string> elems;
+	split(s, delim, elems);
+	return elems;
+}
+
+#ifdef WINDOWS
+static int mkdirRecursive(const char *path)
+#else
+static int mkdirRecursive(const char *path, mode_t mode)
+#endif
+{
+	std::vector<std::string> pathes = split(path, '/');
+	std::stringstream ss;
+	int res = 0;
+	for (const auto& p: pathes)
+	{
+		if (p.empty())
+			continue;
+		ss << "/" << p;
+#ifndef WINDOWS
+		int res = mkdir(ss.str().c_str(), mode);
+#else
+		int res = _mkdir(ss.str().c_str());
+#endif
+		if ((res != 0) && (errno != EEXIST))
+			return res;
+	}
+	return res;
+}
+
+#ifndef WINDOWS
 static std::string execGetOutput(const std::string& cmd)
 {
 	std::shared_ptr<FILE> pipe(popen((cmd + " 2> /dev/null").c_str(), "r"), pclose);
@@ -71,7 +123,7 @@ static std::string execGetOutput(const std::string& cmd)
 	}
 	return strutils::trim(result);
 }
-
+#endif
 
 #ifdef ANDROID
 static std::string getProp(const std::string& prop)
@@ -85,12 +137,38 @@ static std::string getOS()
 {
 	std::string os;
 #ifdef ANDROID
-	os = strutils::trim_copy("Android " + getProp("ro.build.version.release"));
+	os = trim_copy("Android " + getProp("ro.build.version.release"));
+#elif WINDOWS
+	if (IsWindows10OrGreater())
+		os = "Windows 10";
+	else if (IsWindows8Point1OrGreater())
+		os = "Windows 8.1";
+	else if (IsWindows8OrGreater())
+		os = "Windows 8";
+	else if (IsWindows7SP1OrGreater())
+		os = "Windows 7 SP1";
+	else if (IsWindows7OrGreater())
+		os = "Windows 7";
+	else if (IsWindowsVistaSP2OrGreater())
+		os = "Windows Vista SP2";
+	else if (IsWindowsVistaSP1OrGreater())
+		os = "Windows Vista SP1";
+	else if (IsWindowsVistaOrGreater())
+		os = "Windows Vista";
+	else if (IsWindowsXPSP3OrGreater())
+		os = "Windows XP SP3";
+	else if (IsWindowsXPSP2OrGreater())
+		os = "Windows XP SP2";
+	else if (IsWindowsXPSP1OrGreater())
+		os = "Windows XP SP1";
+	else if (IsWindowsXPOrGreater())
+		os = "Windows XP";
+	else
+		os = "Unknown Windows";
 #else
 	os = execGetOutput("lsb_release -d");
-	if ((os.find(":") != std::string::npos) && (os.find("lsb_release") == std::string::npos))
-		os = strutils::trim_copy(os.substr(os.find(":") + 1));
-#endif
+	if (os.find(":") != std::string::npos)
+		os = trim_copy(os.substr(os.find(":") + 1));
 	if (os.empty())
 	{
 		os = strutils::trim_copy(execGetOutput("grep /etc/os-release /etc/openwrt_release -e PRETTY_NAME -e DISTRIB_DESCRIPTION"));
@@ -101,13 +179,16 @@ static std::string getOS()
 			os.erase(std::remove(os.begin(), os.end(), '\''), os.end());
 		}
 	}
+#endif
+#ifndef WINDOWS
 	if (os.empty())
 	{
 		utsname u;
 		uname(&u);
 		os = u.sysname;
 	}
-	return strutils::trim_copy(os);
+#endif
+	return trim_copy(os);
 }
 
 
@@ -124,7 +205,6 @@ static std::string getHostName()
 	return hostname;
 }
 
-
 static std::string getArch()
 {
 	std::string arch;
@@ -133,22 +213,48 @@ static std::string getArch()
 	if (!arch.empty())
 		return arch;
 #endif
+#ifndef WINDOWS
 	arch = execGetOutput("arch");
 	if (arch.empty())
 		arch = execGetOutput("uname -i");
 	if (arch.empty() || (arch == "unknown"))
 		arch = execGetOutput("uname -m");
-	return strutils::trim_copy(arch);
+#else
+	SYSTEM_INFO sysInfo;
+	GetSystemInfo(&sysInfo);
+	switch (sysInfo.wProcessorArchitecture)
+	{
+	case PROCESSOR_ARCHITECTURE_AMD64:
+		arch = "amd64";
+		break;
+		
+	case PROCESSOR_ARCHITECTURE_ARM:
+		arch = "arm";
+		break;
+		
+	case PROCESSOR_ARCHITECTURE_IA64:
+		arch = "ia64";
+		break;
+		
+	case PROCESSOR_ARCHITECTURE_INTEL:
+		arch = "intel";
+		break;
+		
+	default:
+	case PROCESSOR_ARCHITECTURE_UNKNOWN:
+		arch = "unknown";
+		break;
+	}
+#endif
+	return trim_copy(arch);
 }
 
 
 static long uptime()
 {
-#ifndef FREEBSD
-	struct sysinfo info;
-	sysinfo(&info);
-	return info.uptime;
-#else
+#if defined(WINDOWS)
+	return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::milliseconds(GetTickCount())).count();
+#elif defined(FREEBSD)
 	std::string uptime = execGetOutput("sysctl kern.boottime");
 	if ((uptime.find(" sec = ") != std::string::npos) && (uptime.find(",") != std::string::npos))
 	{
@@ -165,31 +271,15 @@ static long uptime()
 		}
 	}
 	return 0;
+#else
+        struct sysinfo info;
+        sysinfo(&info);
+        return info.uptime;
 #endif
 }
 
-
-/// http://stackoverflow.com/questions/2174768/generating-random-uuids-in-linux
-static std::string generateUUID()
-{
-	static bool initialized(false);
-	if (!initialized)
-	{
-		std::srand(std::time(0));
-		initialized = true;
-	}
-	std::stringstream ss;
-	ss << std::setfill('0') << std::hex  
-		<< std::setw(4) << (std::rand() % 0xffff) << std::setw(4) << (std::rand() % 0xffff)
-		<< "-" << std::setw(4) << (std::rand() % 0xffff)
-		<< "-" << std::setw(4) << (std::rand() % 0xffff)
-		<< "-" << std::setw(4) << (std::rand() % 0xffff)
-		<< "-" << std::setw(4) << (std::rand() % 0xffff) << std::setw(4) << (std::rand() % 0xffff) << std::setw(4) << (std::rand() % 0xffff);
-	return ss.str();
-}
-
-
 /// https://gist.github.com/OrangeTide/909204
+#ifndef WINDOWS
 static std::string getMacAddress(int sock)
 {
 	struct ifreq ifr;
@@ -292,49 +382,42 @@ static std::string getMacAddress(int sock)
 #endif
 	return mac;
 }
-
-
-static std::string getHostId(const std::string defaultId = "")
+#else
+static std::string getMacAddress(const std::string& address)
 {
-	std::string result = strutils::trim_copy(defaultId);
+	IP_ADAPTER_INFO* first;
+	IP_ADAPTER_INFO* pos;
+	ULONG bufferLength = sizeof(IP_ADAPTER_INFO);
+	first = (IP_ADAPTER_INFO*)malloc(bufferLength);
 
-	/// the Android API will return "02:00:00:00:00:00" for WifiInfo.getMacAddress(). 
-	/// Maybe this could also happen with native code
-	if (!result.empty() && (result != "02:00:00:00:00:00") && (result != "00:00:00:00:00:00"))
-		return result;
+	if (GetAdaptersInfo(first, &bufferLength) == ERROR_BUFFER_OVERFLOW)
+	{
+		free(first);
+		first = (IP_ADAPTER_INFO*)malloc(bufferLength);
+	}
 
-#ifdef MACOS
-	/// https://stackoverflow.com/questions/933460/unique-hardware-id-in-mac-os-x
-	/// About this Mac, Hardware-UUID
-	char buf[64];
-	io_registry_entry_t ioRegistryRoot = IORegistryEntryFromPath(kIOMasterPortDefault, "IOService:/");
-	CFStringRef uuidCf = (CFStringRef) IORegistryEntryCreateCFProperty(ioRegistryRoot, CFSTR(kIOPlatformUUIDKey), kCFAllocatorDefault, 0);
-	IOObjectRelease(ioRegistryRoot);
-	if (CFStringGetCString(uuidCf, buf, 64, kCFStringEncodingMacRoman))
-		result = buf;
-	CFRelease(uuidCf);
-#elif ANDROID
-	result = getProp("ro.serialno");
-#endif
-
-//#else
-//	// on embedded platforms it's
-//  // - either not there
-//  // - or not unique, or changes during boot
-//  // - or changes during boot
-//	std::ifstream infile("/var/lib/dbus/machine-id");
-//	if (infile.good())
-//		std::getline(infile, result);
-//#endif
-	strutils::trim(result);
-	if (!result.empty())
-		return result;
-
-	/// The host name should be unique enough in a LAN
-	return getHostName();
+	char mac[19];
+	if (GetAdaptersInfo(first, &bufferLength) == NO_ERROR)
+		for (pos = first; pos != NULL; pos = pos->Next)
+		{
+			IP_ADDR_STRING* firstAddr = &pos->IpAddressList;
+			IP_ADDR_STRING* posAddr;
+			for (posAddr = firstAddr; posAddr != NULL; posAddr = posAddr->Next)
+				if (_stricmp(posAddr->IpAddress.String, address.c_str()) == 0)
+				{
+					sprintf(mac, "%02x:%02x:%02x:%02x:%02x:%02x",
+									pos->Address[0], pos->Address[1], pos->Address[2],
+									pos->Address[3], pos->Address[4], pos->Address[5]);
+					
+					free(first);
+					return mac;
+				}
+		}
+	else
+		free(first);
+	
+	return mac;
 }
-
-
 #endif
 
-
+#endif

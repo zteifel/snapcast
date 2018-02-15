@@ -1,72 +1,24 @@
-language: cpp
 dist: trusty
-sudo: required
-group: deprecated-2017Q4
-
+sudo: false
+language: cpp
 matrix:
   include:
-    # build on ubuntu
-    - os: linux
+    - compiler: clang
+      os: linux
       addons:
         apt:
-          sources:
-            - ubuntu-toolchain-r-test
           packages:
-            - g++-4.9 libasound2-dev libvorbisidec-dev libvorbis-dev libflac-dev alsa-utils libavahi-client-dev avahi-daemon
-      env:
-        - MATRIX_EVAL="CC=gcc-4.9 && CXX=g++-4.9"
-
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-5 libasound2-dev libvorbisidec-dev libvorbis-dev libflac-dev alsa-utils libavahi-client-dev avahi-daemon
-      env:
-         - MATRIX_EVAL="CC=gcc-5 && CXX=g++-5"
-
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-6 libasound2-dev libvorbisidec-dev libvorbis-dev libflac-dev alsa-utils libavahi-client-dev avahi-daemon
-      env:
-        - MATRIX_EVAL="CC=gcc-6 && CXX=g++-6"
-
-    - os: linux
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-7 libasound2-dev libvorbisidec-dev libvorbis-dev libflac-dev alsa-utils libavahi-client-dev avahi-daemon
-      env:
-        - MATRIX_EVAL="CC=gcc-7 && CXX=g++-7"
-
-    # build on osx
-    - os: osx
-      osx_image: xcode9.1
-      env:
-        - MATRIX_EVAL="brew update && brew install flac libvorbis"
-
-#    - os: osx
-#      osx_image: xcode8
-#      env:
-#        - MATRIX_EVAL="brew update && brew install flac libvorbis"
-
-before_install:
-    - eval "${MATRIX_EVAL}"
-
+            - libasound2-dev
+            - libavahi-client-dev
+            - libavahi-common-dev
+            - libflac-dev
+            - libvorbis-dev
+            - libboost-all-dev
+            - libogg-dev
+    - compiler: clang
+      os: osx
 script:
-  - mkdir build
-  - cd build
-  - cmake ../externals/aixlog && make && sudo make install
-  - rm -rf *
-  - cmake ../externals/jsonrpcpp && make && sudo make install
-  - rm -rf *
-  - cmake ../externals/popl && make && sudo make install
-  - rm -rf *
-  - cmake .. && make && sudo make install
+- mkdir build
+- cd build
+- cmake ..
+- make

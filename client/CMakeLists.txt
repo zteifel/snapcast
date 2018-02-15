@@ -1,73 +1,90 @@
-set(CLIENT_SOURCES
-    clientConnection.cpp
-    controller.cpp
-    snapClient.cpp
-    stream.cpp
-    timeProvider.cpp
-    decoder/pcmDecoder.cpp
-    player/player.cpp)
+set(CLIENT_SOURCES snapClient.cpp stream.cpp clientConnection.cpp timeProvider.cpp player/player.cpp decoder/pcmDecoder.cpp decoder/flacDecoder.cpp controller.cpp decoder/oggDecoder.cpp)
 
-set(CLIENT_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} common message)
+set(CLIENT_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} ${FLAC_LIBRARIES} ${OGG_LIBRARIES} ${VORBIS_LIBRARIES} ${OGG_LIBRARIES} common message)
 
-set(CLIENT_INCLUDE
-    ${CMAKE_SOURCE_DIR}/client
-    ${ASIO_INCLUDE_DIRS}
-    ${POPL_INCLUDE_DIRS})
+set(CLIENT_INCLUDE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/externals/asio/asio/include ${CMAKE_SOURCE_DIR}/externals/popl/include ${CMAKE_SOURCE_DIR}/client ${FLAC_INCLUDE_DIRS} ${OGG_INCLUDE_DIRS} ${VORBIS_INCLUDE_DIRS})
 
+add_definitions(-DHAS_OGG -DASIO_STANDALONE)
 
-if(MACOSX)
-    # Bonjour
-    if (BONJOUR_FOUND)
-        list(APPEND CLIENT_SOURCES browseZeroConf/browseBonjour.cpp)
-    endif (BONJOUR_FOUND)
-
-    # CoreAudio
-    add_definitions(-DHAS_COREAUDIO)
-    list(APPEND CLIENT_SOURCES player/coreAudioPlayer.cpp)
-    find_library(COREAUDIO_LIB CoreAudio)
-    find_library(COREFOUNDATION_LIB CoreFoundation)
-    find_library(AUDIOTOOLBOX_LIB AudioToolbox)
-    list(APPEND CLIENT_LIBRARIES ${COREAUDIO_LIB} ${COREFOUNDATION_LIB} ${AUDIOTOOLBOX_LIB})
-else()
-    # Avahi
-    if (AVAHI_FOUND)
-        list(APPEND CLIENT_SOURCES browseZeroConf/browseAvahi.cpp)
-        list(APPEND CLIENT_LIBRARIES ${AVAHI_LIBRARIES})
-        list(APPEND CLIENT_INCLUDE ${AVAHI_INCLUDE_DIRS})
-    endif (AVAHI_FOUND)
-
-    # ALSA
-    if (ALSA_FOUND)
-        list(APPEND CLIENT_SOURCES player/alsaPlayer.cpp)
-        list(APPEND CLIENT_LIBRARIES ${ALSA_LIBRARIES})
-        list(APPEND CLIENT_INCLUDE ${ALSA_INCLUDE_DIRS})
-    endif (ALSA_FOUND)
-endif (MACOSX)
-
-# if OGG then tremor or vorbis
-if (OGG_FOUND)
-    list(APPEND CLIENT_SOURCES decoder/oggDecoder.cpp)
-    list(APPEND CLIENT_LIBRARIES ${OGG_LIBRARIES})
-    list(APPEND CLIENT_INCLUDE ${OGG_INCLUDE_DIRS})
-endif (OGG_FOUND)
-
-# Tremor (fixed-point) or libvorbis (floating-point)
-if (TREMOR_FOUND)
-    list(APPEND CLIENT_LIBRARIES ${TREMOR_LIBRARIES})
-    list(APPEND CLIENT_INCLUDE ${TREMOR_INCLUDE_DIRS})
-elseif (VORBIS_FOUND)
-    list(APPEND CLIENT_LIBRARIES ${VORBIS_LIBRARIES})
-    list(APPEND CLIENT_INCLUDE ${VORBIS_INCLUDE_DIRS})
-endif (TREMOR_FOUND)
-
-if (FLAC_FOUND)
-    list(APPEND CLIENT_SOURCES decoder/flacDecoder.cpp)
-    list(APPEND CLIENT_LIBRARIES ${FLAC_LIBRARIES})
-    list(APPEND CLIENT_INCLUDE ${FLAC_INCLUDE_DIRS})
-endif (FLAC_FOUND)
+if (UNIX AND NOT ANDROID)
+  if (AVAHI_FOUND)
+    list(APPEND CLIENT_SOURCES browseZeroConf/browseAvahi.cpp)
+    list(APPEND CLIENT_LIBRARIES ${AVAHI_LIBRARIES})
+    list(APPEND CLIENT_INCLUDE ${AVAHI_INCLUDE_DIRS})
+    add_definitions(-DHAS_AVAHI)
+  elseif (MDNSRESPONDER_FOUND)
+    list(APPEND CLIENT_SOURCES browseZeroConf/browseBonjour.cpp)
+    list(APPEND CLIENT_LIBRARIES ${MDNSRESPONDER_LIBRARIES})
+    list(APPEND CLIENT_INCLUDE ${MDNSRESPONDER_INCLUDE_DIRS})
+    add_definitions(-DHAS_BONJOUR)
+  endif()
+  list(APPEND CLIENT_SOURCES player/alsaPlayer.cpp)
+  list(APPEND CLIENT_LIBRARIES ${ALSA_LIBRARIES})
+  add_definitions(-DHAS_ALSA -DHAS_DAEMON)
+  list(APPEND CLIENT_INCLUDE ${ALSA_INCLUDE_DIRS})
+elseif (ANDROID)
+  add_definitions(-DHAS_OPENSL -DANDROID)
+  list(APPEND CLIENT_SOURCES player/openslPlayer.cpp)
+  list(APPEND CLIENT_LIBRARIES OpenSLES ${CMAKE_ANDROID_STL_TYPE} atomic)
+elseif (WIN32)
+  configure_file(snapclient.rc.in snapclient.rc)
+  list(APPEND CLIENT_SOURCES browseZeroConf/browseBonjour.cpp player/wasapiPlayer.cpp snapclient.rc)
+  add_definitions(-DHAS_WASAPI -DHAS_BONJOUR)
+  list(APPEND CLIENT_LIBRARIES ${FLAC_LIBRARIES} ${MDNSRESPONDER_LIBRARIES} wsock32 ws2_32 avrt ksuser iphlpapi)
+  list(APPEND CLIENT_INCLUDE ${MDNSRESPONDER_INCLUDE_DIRS})
+endif()
 
 include_directories(${CLIENT_INCLUDE})
 add_executable(snapclient ${CLIENT_SOURCES})
 target_link_libraries(snapclient ${CLIENT_LIBRARIES})
 
+<<<<<<< HEAD
 install(TARGETS snapclient COMPONENT client DESTINATION "${CMAKE_INSTALL_BINDIR}")
+=======
+if(UNIX)
+  install(TARGETS snapclient COMPONENT client DESTINATION sbin)
+  install(FILES snapclient.1 COMPONENT client DESTINATION usr/share/man/man1/snapclient.1)
+  install(FILES ${CMAKE_SOURCE_DIR}/platform/debian/client/copyright COMPONENT client DESTINATION usr/share/doc/snapclient)
+  install(FILES ${CMAKE_SOURCE_DIR}/platform/debian/client/snapclient.service COMPONENT client DESTINATION lib/systemd/system)
+  install(FILES ${CMAKE_SOURCE_DIR}/platform/debian/client/snapclient.init COMPONENT client DESTINATION etc/init.d RENAME snapclient)
+  install(FILES ${CMAKE_SOURCE_DIR}/platform/debian/client/snapclient.default COMPONENT client DESTINATION etc/default RENAME snapclient)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/../README.md.gz COMPONENT client DESTINATION share/doc/snapclient)
+  install(FILES ${CMAKE_CURRENT_BINARY_DIR}/../changelog.gz COMPONENT client DESTINATION share/doc/snapclient)
+elseif(WIN32)
+  install(TARGETS snapclient COMPONENT client DESTINATION ./)
+  if (ARCH STREQUAL "x86_64")
+    set(ARCH_PATH "x64")
+    set(SOURCE_WXS "${CMAKE_SOURCE_DIR}/platform/windows/client/bundle.x86_64.wxs.in")
+    set(MSI_SUFFIX "win64")
+  elseif (ARCH STREQUAL "i386")
+    set(ARCH_PATH "Win32")
+    set(SOURCE_WXS "${CMAKE_SOURCE_DIR}/platform/windows/client/bundle.i386.wxs.in")
+    set(MSI_SUFFIX "win32")
+  else()
+    message(FATAL_ERROR "Trying to build for windows on arch other than x86_64/i386.  Failing")
+  endif()
+  set(SNAPCLIENT_MSI ${CPACK_OUTPUT_FILE_PREFIX}/${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${MSI_SUFFIX}.msi)
+
+  find_package(Wix REQUIRED)
+  set(BUNDLE_OUTPUT   ${CPACK_OUTPUT_FILE_PREFIX}/${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${MSI_SUFFIX}.exe)
+  set(SOURCE_WIX_FILE ${CMAKE_CURRENT_BINARY_DIR}/bundle.wxs)
+  set(OUTPUT_WIXOBJ   ${CMAKE_CURRENT_BINARY_DIR}/bundle.wixobj)
+  configure_file(${SOURCE_WXS} ${SOURCE_WIX_FILE})
+  ADD_CUSTOM_COMMAND(
+    OUTPUT    ${OUTPUT_WIXOBJ}
+    COMMAND   ${CPACK_WIX_CANDLE_EXECUTABLE}
+    ARGS      ${SOURCE_WIX_FILE} -ext WixBalExtension
+    DEPENDS   ${SOURCE_WIX_FILE}
+    COMMENT   "Compiling ${SOURCE_WIX_FILE} -> ${OUTPUT_WIXOBJ}"
+  )
+  ADD_CUSTOM_COMMAND( 
+    OUTPUT    ${BUNDLE_OUTPUT}
+    COMMAND   ${CPACK_WIX_LIGHT_EXECUTABLE}
+    ARGS      -out ${BUNDLE_OUTPUT} -ext WixBalExtension ${OUTPUT_WIXOBJ}
+    DEPENDS   ${OUTPUT_WIXOBJ}
+    COMMENT   "Linking ${OUTPUT_WIXOBJ} -> ${BUNDLE_OUTPUT}"
+  )
+  add_custom_target("BUNDLE" DEPENDS ${BUNDLE_OUTPUT})
+  add_dependencies("BUNDLE" "PACKAGE")
+endif()
+>>>>>>> 281f1bd161fd2a4cd4aa11daf08ca5c3fe88d83d

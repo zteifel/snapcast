@@ -17,7 +17,10 @@
 ***/
 
 #include <iostream>
+
+#ifndef WINDOWS
 #include <sys/resource.h>
+#endif
 
 #include "popl.hpp"
 #include "controller.h"
@@ -26,10 +29,14 @@
 #ifdef HAS_ALSA
 #include "player/alsaPlayer.h"
 #endif
+
+#include "browsemDNS.h"
+
 #ifdef HAS_DAEMON
 #include "common/daemon.h"
 #endif
-#include "aixlog.hpp"
+
+#include "common/log.h"
 #include "common/signalHandler.h"
 #include "common/strCompat.h"
 #include "common/utils.h"
@@ -43,8 +50,13 @@ volatile sig_atomic_t g_terminated = false;
 
 PcmDevice getPcmDevice(const std::string& soundcard)
 {
+#if defined(HAS_ALSA) || defined(WINDOWS)
+	vector<PcmDevice> pcmDevices =
 #ifdef HAS_ALSA
-	vector<PcmDevice> pcmDevices = AlsaPlayer::pcm_list();
+	AlsaPlayer::pcm_list();
+#else
+	WASAPIPlayer::pcm_list();
+#endif
 
 	try
 	{
@@ -64,7 +76,6 @@ PcmDevice getPcmDevice(const std::string& soundcard)
 	PcmDevice pcmDevice;
 	return pcmDevice;
 }
-
 
 int main (int argc, char **argv)
 {
@@ -124,10 +135,15 @@ int main (int argc, char **argv)
 			exit(EXIT_SUCCESS);
 		}
 
-#ifdef HAS_ALSA
-		if (listSwitch->is_set())
+		if (listSwitch.isSet())
 		{
-			vector<PcmDevice> pcmDevices = AlsaPlayer::pcm_list();
+#if defined(HAS_ALSA) || defined(WINDOWS)
+			vector<PcmDevice> pcmDevices =
+#ifdef HAS_ALSA
+			AlsaPlayer::pcm_list();
+#elif WINDOWS
+			WASAPIPlayer::pcm_list();
+#endif
 			for (auto dev: pcmDevices)
 			{
 				cout << dev.idx << ": " << dev.name << "\n"
@@ -143,26 +159,14 @@ int main (int argc, char **argv)
 			exit(EXIT_SUCCESS);
 		}
 
-		if (instance <= 0)
-			std::invalid_argument("instance id must be >= 1");
+#ifdef WINDOWS
+#define LOG_DAEMON 0
+#endif
+		std::clog.rdbuf(new Log("snapclient", LOG_DAEMON));
 
-
-		// XXX: Only one metadata option must be set
-
-		AixLog::Log::init<AixLog::SinkNative>("snapclient", AixLog::Severity::trace, AixLog::Type::special);
-		if (debugOption->is_set())
-		{
-			AixLog::Log::instance().add_logsink<AixLog::SinkCout>(AixLog::Severity::trace, AixLog::Type::all, "%Y-%m-%d %H-%M-%S.#ms [#severity] (#tag_func)");
-			if (!debugOption->value().empty())
-				AixLog::Log::instance().add_logsink<AixLog::SinkFile>(AixLog::Severity::trace, AixLog::Type::all, debugOption->value(), "%Y-%m-%d %H-%M-%S.#ms [#severity] (#tag_func)");
-		}
-		else
-		{
-			AixLog::Log::instance().add_logsink<AixLog::SinkCout>(AixLog::Severity::info, AixLog::Type::all, "%Y-%m-%d %H-%M-%S [#severity]");
-		}
-
-
+#ifndef WINDOWS // no sighup on windows
 		signal(SIGHUP, signal_handler);
+#endif
 		signal(SIGTERM, signal_handler);
 		signal(SIGINT, signal_handler);
 
@@ -258,5 +262,3 @@ int main (int argc, char **argv)
 	SLOG(NOTICE) << "daemon terminated." << endl;
 	exit(exitcode);
 }
-
-

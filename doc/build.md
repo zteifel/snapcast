@@ -14,35 +14,32 @@ For FreeBSD:
 
 Clone Snapcast:
 
-    $ git clone https://github.com/badaix/snapcast.git
-
-this creates a directory `snapcast`, in the following referred to as `<snapcast dir>`.  
-Next clone the external submodules:
-
-    $ cd <snapcast dir>/externals
-    $ git submodule update --init --recursive
-
+    $ git clone --recursive https://github.com/badaix/snapcast.git
 
 ## Linux (Native)
 Install the build tools and required libs:  
 For Debian derivates (e.g. Raspbian, Debian, Ubuntu, Mint):
 
-    $ sudo apt-get install build-essential
+    $ sudo apt-get install build-essential cmake
     $ sudo apt-get install libasound2-dev libvorbisidec-dev libvorbis-dev libflac-dev alsa-utils libavahi-client-dev avahi-daemon
 
 Compilation requires gcc 4.8 or higher, so it's highly recommended to use Debian (Raspbian) Jessie.
 
 For Arch derivates:
 
-    $ sudo pacman -S base-devel
-    $ sudo pacman -S alsa-lib avahi libvorbis flac alsa-utils
+    $ pacman -S base-devel cmake
+    $ pacman -S alsa-lib avahi libvorbis flac alsa-utils
 
 ### Build Snapclient and Snapserver
 `cd` into the Snapcast src-root directory:
 
     $ cd <snapcast dir>
+    $ mkdir build
+    $ cd build
+    $ cmake -DCMAKE_BUILD_TYPE=Release ..
     $ make
 
+<<<<<<< HEAD
 Install Snapclient and/or Snapserver:
 
     $ sudo make installserver
@@ -69,11 +66,24 @@ This will copy the client binary to `/usr/bin` and update init.d/systemd to star
     $ make
 
 Install Snapserver
+=======
+Install Snapclient and Snapserver:
 
     $ sudo make install
 
-This will copy the server binary to `/usr/bin` and update init.d/systemd to start the server as a daemon.
+This will copy the client and/or server binary to `/usr/sbin` and update init.d/systemd to start the client/server as a daemon.
+>>>>>>> 281f1bd161fd2a4cd4aa11daf08ca5c3fe88d83d
 
+###Packaging Snapcast
+In the build directory:
+
+<<<<<<< HEAD
+This will copy the server binary to `/usr/bin` and update init.d/systemd to start the server as a daemon.
+=======
+    $ make package
+>>>>>>> 281f1bd161fd2a4cd4aa11daf08ca5c3fe88d83d
+
+A debian-based platform is required to build a function `.deb` package.  All platforms will build a tar binary archive.
 
 ## FreeBSD (Native)
 Install the build tools and required libs:  
@@ -210,6 +220,7 @@ Rebuild Snapcast:
     $ make package/sxx/snapcast/clean
     $ make package/sxx/snapcast/compile
 
+<<<<<<< HEAD
 The packaged `ipk` files are for OpenWrt in `<buildroot dir>/bin/ar71xx/packages/base/snap[client|server]_x.x.x_ar71xx.ipk` and for LEDE `<buildroot dir>/bin/packages/mips_24kc/base/snap[client|server]_x.x.x_mips_24kc.ipk`
 
 ## Buildroot (Cross compile)
@@ -241,3 +252,73 @@ And finally run the build:
 This example will show you how to add snapcast to [Buildroot](https://buildroot.org/) and compile for Raspberry Pi.
 
 * https://github.com/nickaknudson/snapcast-pi
+=======
+The packaged `ipk` files are in `<buildroot dir>/bin/ar71xx/packages/base/snap[client|server]_x.x.x_ar71xx.ipk`
+
+##Windows (Native)
+The instructions below are for Visual Studio 2015 community, which is free for private use.  The project can be compiled using other toolsets such as MinGW however that is not documented here.
+
+Builing FLAC requires nasm.exe to be on the system PATH.  Grab it from [nasm.us](http://www.nasm.us/pub/nasm/releasebuilds/?C=M;O=D).
+
+###Compiling libogg
+Open `externals/ogg/win32/VS2015/libogg_dynamic.sln`
+
+When prompted, upgrade the toolset
+
+Set the configuration to release
+
+Set the platform to x64 or Win32 depending on which you are building for
+
+
+Open `externals/ogg/win32/VS2015/libogg_static.sln`
+
+Set the configuration to release
+
+Set the platform to x64 or Win32 depending on which you are building for
+
+Copy all files from `externals/ogg/win32/VS2015/(x64|Win32)/Release` to `externals/flac/objs/(x64|Win32)/Release/lib` (you may need to create part of this tree)
+
+Copy `ogg` folder from `externals/ogg/include/ogg` to `externals/flac/include`
+
+###Compiling libFLAC
+Open `externals/flac/FLAC.sln`
+
+When prompted, upgrade the toolset
+
+Set the configuration to release
+
+Set the platform to x64 or Win32 depending on which you are building for
+
+###Compiling libvorbis
+Open `externals/vorbis/win32/VS2010/vorbis_dynamic.sln`
+
+When prompted, upgrade the toolset
+
+Set the configuration to release
+
+Set the platform to x64 or Win32 depending on which you are building for
+
+Right click the project `libvorbis` and select `Properties`
+
+Under `Linker\General`, modify `Additional Library Directories` to read `..\..\..\..\ogg\win32\VS2015\$(Platform)\$(Configuration);%(AdditionalLibraryDirectories)`
+
+Close the property sheet
+
+Copy `ogg` folder from `externals/ogg/include/ogg` to `externals/vorbis/include`
+
+Right click `libvorbis` and select `Build`
+
+###Compiling Snapcast
+Launch CMake GUI and generate a Visual Studio solution
+
+Open `snapcast.sln`.  Select release configuration.  Build the solution
+
+###Packaging
+Windows packaging comes in two flavours: bundled and standalone.  The standalone installer produces an MSI that only installs snapclient.  Bundled produces a bootstrapped EXE that installs all prerequisites before snapclient.  Producing a bundled package requires the Bonjour SDK and a signed redistribution agreement.  If a bundled installer is required, ensure the Bonjour SDK is installed before proceeding with the bundle steps.  WiX toolset must be installed
+
+####Standalone MSI
+Build the `PACKAGE` project.  The MSI will be created in the build directory.
+
+####Bundled EXE
+Build the `BUNDLE` project.  The EXE will be created in the build directory.
+>>>>>>> 281f1bd161fd2a4cd4aa11daf08ca5c3fe88d83d

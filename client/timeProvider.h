@@ -73,7 +73,7 @@ public:
 
 	inline static chronos::time_point_clk serverNow()
 	{
-		return chronos::clk::now() + TimeProvider::getInstance().getDiffToServer<chronos::usec>();
+		return now() + TimeProvider::getInstance().getDiffToServer<chronos::usec>();
 	}
 
 private:

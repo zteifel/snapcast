@@ -509,7 +509,11 @@ void StreamServer::onMessageReceived(StreamSession* connection, const msg::BaseM
 		ClientInfoPtr client = Config::instance().getClientInfo(connection->clientId);
 		if (client != nullptr)
 		{
+<<<<<<< HEAD
 			chronos::systemtimeofday(&client->lastSeen);
+=======
+			chronos::to_timeval(chronos::clk::now().time_since_epoch(), client->lastSeen);
+>>>>>>> 281f1bd161fd2a4cd4aa11daf08ca5c3fe88d83d
 			client->connected = true;
 		}
 	}

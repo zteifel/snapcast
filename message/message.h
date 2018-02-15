@@ -24,10 +24,8 @@
 #include <iostream>
 #include <streambuf>
 #include <vector>
-#include <sys/time.h>
 #include "common/endian.h"
 #include "common/timeDefs.h"
-
 
 template<typename CharT, typename TraitsT = std::char_traits<CharT> >
 class vectorwrapbuf : public std::basic_streambuf<CharT, TraitsT>
@@ -70,7 +68,7 @@ struct tv
 	tv()
 	{
 		timeval t;
-		chronos::systemtimeofday(&t);
+		chronos::to_timeval(chronos::clk::now().time_since_epoch(), t);
 		sec = t.tv_sec;
 		usec = t.tv_usec;
 	}

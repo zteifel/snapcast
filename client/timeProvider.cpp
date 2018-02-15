@@ -17,8 +17,8 @@
 ***/
 
 #include "timeProvider.h"
-#include "aixlog.hpp"
-
+#include "common/log.h"
+#include "common/timeDefs.h"
 
 TimeProvider::TimeProvider() : diffToServer_(0)
 {
@@ -28,26 +28,25 @@ TimeProvider::TimeProvider() : diffToServer_(0)
 
 void TimeProvider::setDiff(const tv& c2s, const tv& s2c)
 {
-		tv latency = c2s - s2c;
-		double diff = latency.sec * 1000. + latency.usec / 1000.;
-		setDiffToServer(diff / 2.);
+	tv latency = c2s - s2c;
+	double diff = latency.sec * 1000. + latency.usec / 1000.;
+	setDiffToServer(diff / 2.);
 }
 
 
 void TimeProvider::setDiffToServer(double ms)
 {
 	static int32_t lastTimeSync = 0;
-	timeval now;
-	chronos::systemtimeofday(&now);
+	auto nowSeconds = std::chrono::duration_cast<chronos::sec>(chronos::clk::now().time_since_epoch()).count();
 
 	/// clear diffBuffer if last update is older than a minute
-	if (!diffBuffer_.empty() && (std::abs(now.tv_sec - lastTimeSync) > 60))
+	if (!diffBuffer_.empty() && (std::abs(nowSeconds - lastTimeSync) > 60))
 	{
 		LOG(INFO) << "Last time sync older than a minute. Clearing time buffer\n";
 		diffToServer_ = ms*1000;
 		diffBuffer_.clear();
 	}
-	lastTimeSync = now.tv_sec;
+	lastTimeSync = nowSeconds;
 
 	diffBuffer_.add(ms*1000);
 	diffToServer_ = diffBuffer_.median(3);
